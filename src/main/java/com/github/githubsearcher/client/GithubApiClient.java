@@ -1,10 +1,10 @@
 package com.github.githubsearcher.client;
 
-
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.githubsearcher.exception.GithubApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
@@ -18,19 +18,19 @@ import java.util.List;
 @Component
 public class GithubApiClient {
 
+    private static final Logger log =
+            LoggerFactory.getLogger(GithubApiClient.class);
+
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String githubToken;
 
     public GithubApiClient(
-            RestClient.Builder restClientBuilder,
+            RestClient githubRestClient,
             ObjectMapper objectMapper,
             @Value("${github.token:}") String githubToken) {
 
-        this.restClient = restClientBuilder
-                .baseUrl("https://api.github.com")
-                .build();
-
+        this.restClient = githubRestClient;
         this.objectMapper = objectMapper;
         this.githubToken = githubToken;
     }
@@ -40,20 +40,17 @@ public class GithubApiClient {
             String language,
             String sort) {
 
-    	String githubQuery = query;
-        
-       
-
+        // Search GitHub using the repository name/query.
+        // Language filtering is done in Java after receiving the results.
         String uri = UriComponentsBuilder
                 .fromPath("/search/repositories")
-                .queryParam("q", githubQuery)
+                .queryParam("q", query)
                 .queryParam("sort", sort)
                 .queryParam("order", "desc")
                 .queryParam("per_page", 100)
                 .toUriString();
-        
-        System.out.println("GitHub Query: " + githubQuery);
-        System.out.println("GitHub URI: " + uri);
+
+        log.debug("Calling GitHub search API: {}", uri);
 
         try {
             RestClient.RequestHeadersSpec<?> request = restClient
@@ -70,17 +67,22 @@ public class GithubApiClient {
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (req, res) -> {
                         throw new GithubApiException(
-                                "GitHub API returned status: " + res.getStatusCode()
+                                "GitHub API returned status: "
+                                        + res.getStatusCode()
                         );
                     })
                     .body(String.class);
 
-            List<GithubRepositoryData> repositories = parseRepositories(response);
+            List<GithubRepositoryData> repositories =
+                    parseRepositories(response);
 
+            // Filter by language in our application
             if (language != null && !language.isBlank()) {
                 repositories = repositories.stream()
-                        .filter(repo -> repo.language() != null
-                                && language.equalsIgnoreCase(repo.language()))
+                        .filter(repo ->
+                                repo.language() != null
+                                        && language.equalsIgnoreCase(
+                                        repo.language()))
                         .toList();
             }
 
@@ -88,7 +90,10 @@ public class GithubApiClient {
 
         } catch (GithubApiException e) {
             throw e;
+
         } catch (Exception e) {
+            log.error("Failed to communicate with GitHub API", e);
+
             throw new GithubApiException(
                     "Unable to communicate with GitHub API"
             );
@@ -99,8 +104,6 @@ public class GithubApiClient {
 
         try {
             JsonNode root = objectMapper.readTree(response);
-            System.out.println("GitHub API response:");
-            System.out.println(response);
 
             List<GithubRepositoryData> repositories = new ArrayList<>();
 
@@ -116,7 +119,9 @@ public class GithubApiClient {
                                 : item.path("description").asText();
 
                 String owner =
-                        item.path("owner").path("login").asText(null);
+                        item.path("owner")
+                                .path("login")
+                                .asText(null);
 
                 String language =
                         item.path("language").isNull()
@@ -154,6 +159,8 @@ public class GithubApiClient {
             return repositories;
 
         } catch (Exception e) {
+            log.error("Failed to parse GitHub API response", e);
+
             throw new GithubApiException(
                     "Unable to process GitHub API response"
             );

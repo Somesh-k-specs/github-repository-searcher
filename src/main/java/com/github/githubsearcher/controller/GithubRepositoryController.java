@@ -2,6 +2,7 @@ package com.github.githubsearcher.controller;
 
 
 
+import com.github.githubsearcher.dto.GithubRepositoryListResponse;
 import com.github.githubsearcher.dto.GithubRepositoryResponse;
 import com.github.githubsearcher.dto.GithubSearchRequest;
 import com.github.githubsearcher.dto.GithubSearchResponse;
@@ -40,15 +41,18 @@ public class GithubRepositoryController {
     }
 
     @GetMapping("/repositories")
-    public List<GithubRepositoryResponse> getRepositories(
+    public GithubRepositoryListResponse getRepositories(
             @RequestParam(required = false) String language,
             @RequestParam(required = false) Integer minStars,
             @RequestParam(defaultValue = "stars") String sort) {
 
-        return service.getRepositories(
-                language,
-                minStars,
-                sort
-        );
+        List<GithubRepositoryResponse> repositories =
+                service.getRepositories(
+                        language,
+                        minStars,
+                        sort
+                );
+
+        return new GithubRepositoryListResponse(repositories);
     }
 }

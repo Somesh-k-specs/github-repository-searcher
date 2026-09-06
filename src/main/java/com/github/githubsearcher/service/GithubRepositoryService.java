@@ -32,6 +32,14 @@ public class GithubRepositoryService {
             String language,
             String sort) {
 
+        // Use stars as the default sorting option
+        if (sort == null || sort.isBlank()) {
+            sort = "stars";
+        }
+
+        // Validate sort before calling GitHub API
+        validateSort(sort);
+
         List<GithubRepositoryData> githubRepositories =
                 githubApiClient.searchRepositories(
                         query,
@@ -78,6 +86,13 @@ public class GithubRepositoryService {
             Integer minStars,
             String sort) {
 
+        if (sort == null || sort.isBlank()) {
+            sort = "stars";
+        }
+
+        // Validate sort before querying the database
+        validateSort(sort);
+
         List<GithubRepository> repositories;
 
         if (language != null && !language.isBlank()
@@ -115,13 +130,25 @@ public class GithubRepositoryService {
                 .toList();
     }
 
+    private void validateSort(String sort) {
+
+        if (!sort.equalsIgnoreCase("stars")
+                && !sort.equalsIgnoreCase("forks")
+                && !sort.equalsIgnoreCase("updated")) {
+
+            throw new IllegalArgumentException(
+                    "Invalid sort value. Allowed values: stars, forks, updated"
+            );
+        }
+    }
+
     private void sortRepositories(
             List<GithubRepository> repositories,
             String sort) {
 
         Comparator<GithubRepository> comparator;
 
-        switch (sort) {
+        switch (sort.toLowerCase()) {
 
             case "forks" ->
                     comparator = Comparator.comparing(
